@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cricket LBW Review System</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0f1a; color: #e8eaf6; font-family: 'Segoe UI', Arial, sans-serif; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #0d2137 0%, #1a3a5c 100%);
+    padding: 18px 32px;
+    display: flex; align-items: center; gap: 16px;
+    border-bottom: 2px solid #1e4976;
+  }
+  header h1 { font-size: 1.4rem; letter-spacing: 2px; text-transform: uppercase; color: #fff; }
+  .logo-icon { width: 36px; height: 36px; background: #e53935; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  /* Steps */
+  .steps { display: flex; gap: 8px; margin-bottom: 32px; }
+  .step { flex: 1; padding: 12px 16px; background: #111827; border-radius: 8px; border-left: 3px solid #1e4976; cursor: pointer; transition: all .2s; }
+  .step.active { border-left-color: #3b82f6; background: #1a2744; }
+  .step.done { border-left-color: #22c55e; }
+  .step-num { font-size: .75rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; }
+  .step-label { font-size: .9rem; font-weight: 600; margin-top: 2px; }
+
+  /* Upload */
+  .upload-zone {
+    border: 2px dashed #1e4976; border-radius: 12px; padding: 60px 40px;
+    text-align: center; cursor: pointer; transition: all .2s; background: #111827;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: #3b82f6; background: #1a2744; }
+  .upload-zone .icon { font-size: 3rem; margin-bottom: 12px; }
+  .upload-zone h2 { font-size: 1.2rem; margin-bottom: 8px; }
+  .upload-zone p { color: #6b7280; font-size: .9rem; }
+  #fileInput { display: none; }
+
+  /* Video section */
+  .video-section { display: none; }
+  .video-wrapper { position: relative; background: #000; border-radius: 8px; overflow: hidden; display: inline-block; max-width: 100%; }
+  #videoEl { display: block; max-width: 100%; max-height: 500px; }
+  #overlayCanvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+  #clickCanvas { position: absolute; top: 0; left: 0; cursor: crosshair; }
+
+  .video-controls { margin-top: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 9px 20px; border: none; border-radius: 6px; font-size: .85rem; font-weight: 600; cursor: pointer; letter-spacing: .5px; transition: all .15s; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-success { background: #16a34a; color: #fff; }
+  .btn-success:hover { background: #15803d; }
+  .btn-danger { background: #dc2626; color: #fff; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-secondary { background: #374151; color: #e5e7eb; }
+  .btn-secondary:hover { background: #4b5563; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  input[type=range] { flex: 1; accent-color: #3b82f6; }
+  .frame-info { font-size: .8rem; color: #9ca3af; white-space: nowrap; }
+
+  /* Marking panel */
+  .mark-panel { background: #111827; border-radius: 10px; padding: 20px; margin-top: 20px; }
+  .mark-panel h3 { font-size: .9rem; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin-bottom: 16px; }
+  .mark-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .mark-item { display: flex; align-items: center; gap: 10px; background: #1f2937; padding: 10px 14px; border-radius: 8px; border: 1px solid #374151; }
+  .mark-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .mark-label { font-size: .85rem; flex: 1; }
+  .mark-value { font-size: .75rem; color: #6b7280; font-family: monospace; }
+  .mark-item.set .mark-value { color: #22c55e; }
+  .mode-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .mode-btn { padding: 7px 14px; border-radius: 6px; font-size: .8rem; font-weight: 600; cursor: pointer; border: 2px solid #374151; background: transparent; color: #9ca3af; transition: all .15s; }
+  .mode-btn.active { border-color: #3b82f6; color: #93c5fd; background: #1e3a5f; }
+
+  .instruction-box { background: #1a2744; border: 1px solid #1e4976; border-radius: 8px; padding: 12px 16px; margin-top: 12px; font-size: .85rem; color: #93c5fd; }
+
+  /* Frame range */
+  .range-row { display: flex; gap: 16px; align-items: center; margin-top: 16px; }
+  .range-row label { font-size: .8rem; color: #9ca3af; white-space: nowrap; }
+  .range-row input[type=number] { width: 80px; background: #1f2937; border: 1px solid #374151; color: #e5e7eb; padding: 6px 10px; border-radius: 6px; font-size: .85rem; }
+
+  /* Results */
+  #resultsSection { display: none; margin-top: 32px; }
+  .result-header { text-align: center; margin-bottom: 24px; }
+  .result-header h2 { font-size: 1.3rem; text-transform: uppercase; letter-spacing: 3px; color: #e8eaf6; }
+
+  .cards-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  @media (max-width: 700px) { .cards-row { grid-template-columns: repeat(2, 1fr); } }
+
+  .drs-card { border-radius: 8px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,.4); }
+  .drs-card .card-label { background: #1565c0; padding: 10px 14px; font-size: .75rem; letter-spacing: 2px; text-transform: uppercase; text-align: center; font-weight: 700; }
+  .drs-card .card-value { padding: 14px 10px; font-size: 1rem; font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+  .card-green { background: #1b5e20; }
+  .card-red { background: #b71c1c; }
+  .card-orange { background: #e65100; }
+
+  .decision-banner { text-align: center; padding: 20px; border-radius: 10px; margin-bottom: 24px; }
+  .decision-banner.out { background: linear-gradient(135deg, #7f1d1d, #b91c1c); border: 2px solid #ef4444; }
+  .decision-banner.not-out { background: linear-gradient(135deg, #14532d, #16a34a); border: 2px solid #22c55e; }
+  .decision-banner.uc { background: linear-gradient(135deg, #78350f, #d97706); border: 2px solid #f59e0b; }
+  .decision-banner h1 { font-size: 2rem; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; }
+  .decision-banner p { color: rgba(255,255,255,.7); margin-top: 4px; font-size: .9rem; }
+
+  .result-image { max-width: 100%; border-radius: 8px; border: 2px solid #1e4976; }
+  .result-img-wrap { text-align: center; margin-top: 16px; }
+
+  .detections-info { background: #111827; border-radius: 8px; padding: 14px 18px; margin-top: 16px; font-size: .85rem; color: #9ca3af; }
+  .detections-info span { color: #60a5fa; font-weight: 600; }
+
+  /* Spinner */
+  .spinner { display: none; text-align: center; padding: 40px; }
+  .spinner-ring { width: 48px; height: 48px; border: 4px solid #1e4976; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-box { background: #7f1d1d; border: 1px solid #ef4444; border-radius: 8px; padding: 14px 18px; color: #fca5a5; font-size: .9rem; margin-top: 16px; display: none; }
+
+  /* Trajectory canvas */
+  .traj-wrap { margin-top: 20px; }
+  .traj-wrap h3 { font-size: .85rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  #trajCanvas { border-radius: 8px; max-width: 100%; display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">🏏</div>
+  <h1>LBW Review System</h1>
+</header>
+
+<div class="container">
+
+  <div class="steps">
+    <div class="step active" id="step1">
+      <div class="step-num">Step 1</div>
+      <div class="step-label">Upload Video</div>
+    </div>
+    <div class="step" id="step2">
+      <div class="step-num">Step 2</div>
+      <div class="step-label">Mark Key Points</div>
+    </div>
+    <div class="step" id="step3">
+      <div class="step-num">Step 3</div>
+      <div class="step-label">Review Decision</div>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div id="uploadSection">
+    <div class="upload-zone" id="uploadZone">
+      <div class="icon">🎬</div>
+      <h2>Drop your cricket video here</h2>
+      <p>MP4, MOV, AVI supported · Up to 500MB</p>
+      <br>
+      <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Choose File</button>
+      <input type="file" id="fileInput" accept="video/*">
+    </div>
+  </div>
+
+  <!-- Video + marking -->
+  <div class="video-section" id="videoSection">
+    <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start;">
+      <div>
+        <div class="video-wrapper" id="videoWrapper">
+          <video id="videoEl" preload="metadata"></video>
+          <canvas id="overlayCanvas"></canvas>
+          <canvas id="clickCanvas"></canvas>
+        </div>
+        <div class="video-controls">
+          <button class="btn btn-secondary" id="playBtn" onclick="togglePlay()">▶ Play</button>
+          <input type="range" id="scrubber" value="0" min="0" step="1">
+          <span class="frame-info" id="frameInfo">Frame 0</span>
+        </div>
+      </div>
+
+      <div style="flex:1; min-width:280px;">
+        <div class="mark-panel">
+          <h3>Marking Mode</h3>
+          <div class="mode-btns">
+            <button class="mode-btn active" data-mode="stump_top_left" onclick="setMode(this)">Stump Top-Left</button>
+            <button class="mode-btn" data-mode="stump_bottom_right" onclick="setMode(this)">Stump Bot-Right</button>
+            <button class="mode-btn" data-mode="bounce" onclick="setMode(this)">Ball Bounce</button>
+            <button class="mode-btn" data-mode="impact" onclick="setMode(this)">Pad Impact</button>
+          </div>
+          <div class="mode-btns" style="margin-top:0;">
+            <button class="mode-btn" data-mode="crease_leg" onclick="setMode(this)">Crease Leg Side</button>
+            <button class="mode-btn" data-mode="crease_off" onclick="setMode(this)">Crease Off Side</button>
+          </div>
+          <div class="instruction-box" id="instructionBox">
+            Click the <strong>top-left corner of the stumps</strong> (top of leg stump).
+          </div>
+
+          <div class="mark-grid" style="margin-top:14px;">
+            <div class="mark-item" id="mi_stump_top_left">
+              <div class="mark-dot" style="background:#f59e0b;"></div>
+              <div class="mark-label">Stump Top-Left</div>
+              <div class="mark-value" id="mv_stump_top_left">not set</div>
+            </div>
+            <div class="mark-item" id="mi_stump_bottom_right">
+              <div class="mark-dot" style="background:#a78bfa;"></div>
+              <div class="mark-label">Stump Bot-Right</div>
+              <div class="mark-value" id="mv_stump_bottom_right">not set</div>
+            </div>
+            <div class="mark-item" id="mi_bounce">
+              <div class="mark-dot" style="background:#34d399;"></div>
+              <div class="mark-label">Ball Bounce</div>
+              <div class="mark-value" id="mv_bounce">not set</div>
+            </div>
+            <div class="mark-item" id="mi_impact">
+              <div class="mark-dot" style="background:#ef4444;"></div>
+              <div class="mark-label">Pad Impact</div>
+              <div class="mark-value" id="mv_impact">not set</div>
+            </div>
+            <div class="mark-item" id="mi_crease_leg">
+              <div class="mark-dot" style="background:#60a5fa;"></div>
+              <div class="mark-label">Crease Leg Side</div>
+              <div class="mark-value" id="mv_crease_leg">not set</div>
+            </div>
+            <div class="mark-item" id="mi_crease_off">
+              <div class="mark-dot" style="background:#f472b6;"></div>
+              <div class="mark-label">Crease Off Side</div>
+              <div class="mark-value" id="mv_crease_off">not set</div>
+            </div>
+          </div>
+
+          <div class="range-row">
+            <label>Track frames:</label>
+            <input type="number" id="trackStart" value="0" min="0" placeholder="Start">
+            <span style="color:#6b7280;">to</span>
+            <input type="number" id="trackEnd" value="150" min="1" placeholder="End">
+          </div>
+
+          <div style="margin-top:16px; display:flex; gap:10px;">
+            <button class="btn btn-success" id="analyzeBtn" onclick="runAnalysis()" disabled>Analyze LBW</button>
+            <button class="btn btn-secondary" onclick="resetMarks()">Reset Marks</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spinner" id="spinner">
+      <div class="spinner-ring"></div>
+      <p>Tracking ball & computing trajectory…</p>
+    </div>
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <!-- Results -->
+  <div id="resultsSection">
+    <div class="result-header">
+      <h2>Decision Review System</h2>
+    </div>
+
+    <div class="decision-banner" id="decisionBanner">
+      <h1 id="decisionText">—</h1>
+      <p id="decisionReason"></p>
+    </div>
+
+    <div class="cards-row">
+      <div class="drs-card">
+        <div class="card-label">Original Decision</div>
+        <div class="card-value card-green" id="cardOriginal">NOT OUT</div>
+      </div>
+      <div class="drs-card">
+        <div class="card-label">Wickets</div>
+        <div class="card-value" id="cardWickets">—</div>
+      </div>
+      <div class="drs-card">
+        <div class="card-label">Impact</div>
+        <div class="card-value" id="cardImpact">—</div>
+      </div>
+      <div class="drs-card">
+        <div class="card-label">Pitching</div>
+        <div class="card-value" id="cardPitching">—</div>
+      </div>
+    </div>
+
+    <div class="result-img-wrap" id="resultImgWrap"></div>
+
+    <div class="detections-info" id="detectionsInfo"></div>
+
+    <div style="text-align:center; margin-top:24px;">
+      <button class="btn btn-secondary" onclick="reviewAnother()">Review Another Ball</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const state = {
+  videoId: null,
+  filename: null,
+  videoInfo: null,
+  marks: {
+    stump_top_left: null,
+    stump_bottom_right: null,
+    bounce: null,
+    impact: null,
+    crease_leg: null,
+    crease_off: null,
+  },
+  mode: 'stump_top_left',
+  videoNaturalW: 1, videoNaturalH: 1,
+  displayW: 1, displayH: 1,
+};
+
+const instructions = {
+  stump_top_left: 'Click the <strong>top of the leg stump</strong> (top-left corner of the stump set).',
+  stump_bottom_right: 'Click the <strong>base of the off stump</strong> at ground level (bottom-right of stump set).',
+  bounce: 'Click where the ball <strong>bounced / pitched</strong> on the pitch.',
+  impact: 'Click where the ball <strong>hit the batsman\'s pad</strong>.',
+  crease_leg: 'Click where the <strong>leg stump line meets the batting crease</strong> (popping crease, leg side). This corrects for camera warp.',
+  crease_off: 'Click where the <strong>off stump line meets the batting crease</strong> (popping crease, off side). This corrects for camera warp.',
+};
+
+// --- Upload ---
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+
+async function handleFile(file) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('video', file);
+
+  uploadZone.innerHTML = '<div class="spinner-ring" style="margin:0 auto;"></div><p style="margin-top:12px;color:#9ca3af;">Uploading…</p>';
+
+  const res = await fetch('/upload', { method: 'POST', body: fd });
+  const data = await res.json();
+
+  if (data.error) { alert('Upload failed: ' + data.error); return; }
+
+  state.videoId = data.video_id;
+  state.filename = data.filename;
+  state.videoInfo = data.info;
+
+  document.getElementById('trackEnd').value = Math.min(data.info.frame_count - 1, 150);
+  showVideoSection(data.filename);
+  setStepDone(1); setStepActive(2);
+}
+
+function showVideoSection(filename) {
+  document.getElementById('uploadSection').style.display = 'none';
+  document.getElementById('videoSection').style.display = 'block';
+
+  const video = document.getElementById('videoEl');
+  video.src = `/video/${filename}`;
+  video.load();
+
+  video.addEventListener('loadedmetadata', () => {
+    state.videoNaturalW = video.videoWidth;
+    state.videoNaturalH = video.videoHeight;
+    document.getElementById('scrubber').max = Math.floor(video.duration * (state.videoInfo?.fps || 30));
+  });
+
+  video.addEventListener('canplay', () => {
+    state.videoNaturalW = video.videoWidth;
+    state.videoNaturalH = video.videoHeight;
+    syncCanvases();
+    drawOverlay();
+  });
+
+  video.addEventListener('seeked', drawOverlay);
+  video.addEventListener('timeupdate', () => {
+    const fps = state.videoInfo?.fps || 30;
+    const frame = Math.floor(video.currentTime * fps);
+    document.getElementById('scrubber').value = frame;
+    document.getElementById('frameInfo').textContent = `Frame ${frame}`;
+    drawOverlay();
+  });
+
+  const scrubber = document.getElementById('scrubber');
+  scrubber.addEventListener('input', () => {
+    const fps = state.videoInfo?.fps || 30;
+    video.currentTime = scrubber.value / fps;
+  });
+
+  const clickCanvas = document.getElementById('clickCanvas');
+  clickCanvas.addEventListener('click', onVideoClick);
+}
+
+function syncCanvases() {
+  const video = document.getElementById('videoEl');
+  const rect = video.getBoundingClientRect();
+  state.displayW = rect.width || video.offsetWidth || state.videoNaturalW;
+  state.displayH = rect.height || video.offsetHeight || state.videoNaturalH;
+
+  ['overlayCanvas', 'clickCanvas'].forEach(id => {
+    const c = document.getElementById(id);
+    c.width = state.displayW;
+    c.height = state.displayH;
+    c.style.width = state.displayW + 'px';
+    c.style.height = state.displayH + 'px';
+  });
+}
+
+function togglePlay() {
+  const v = document.getElementById('videoEl');
+  if (v.paused) { v.play(); document.getElementById('playBtn').textContent = '⏸ Pause'; }
+  else { v.pause(); document.getElementById('playBtn').textContent = '▶ Play'; }
+}
+
+function setMode(btn) {
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.mode = btn.dataset.mode;
+  document.getElementById('instructionBox').innerHTML = instructions[state.mode];
+}
+
+function onVideoClick(e) {
+  const canvas = document.getElementById('clickCanvas');
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+
+  // Scale to natural video coords
+  const nx = cx * state.videoNaturalW / state.displayW;
+  const ny = cy * state.videoNaturalH / state.displayH;
+
+  state.marks[state.mode] = [nx, ny];
+
+  const el = document.getElementById(`mi_${state.mode}`);
+  el.classList.add('set');
+  document.getElementById(`mv_${state.mode}`).textContent = `(${Math.round(nx)}, ${Math.round(ny)})`;
+
+  drawOverlay();
+  checkReady();
+
+  // Auto-advance mode
+  const modes = ['stump_top_left', 'stump_bottom_right', 'bounce', 'impact', 'crease_leg', 'crease_off'];
+  const idx = modes.indexOf(state.mode);
+  if (idx < modes.length - 1) {
+    const nextBtn = document.querySelector(`[data-mode="${modes[idx+1]}"]`);
+    setMode(nextBtn);
+  }
+}
+
+const COLORS = {
+  stump_top_left: '#f59e0b',
+  stump_bottom_right: '#a78bfa',
+  bounce: '#34d399',
+  impact: '#ef4444',
+  crease_leg: '#60a5fa',
+  crease_off: '#f472b6',
+};
+
+function drawOverlay() {
+  syncCanvases();
+  const canvas = document.getElementById('overlayCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const sx = state.displayW / state.videoNaturalW;
+  const sy = state.displayH / state.videoNaturalH;
+
+  // Draw stump box if both corners set
+  if (state.marks.stump_top_left && state.marks.stump_bottom_right) {
+    const [x1, y1] = state.marks.stump_top_left;
+    const [x2, y2] = state.marks.stump_bottom_right;
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x1*sx, y1*sy, (x2-x1)*sx, (y2-y1)*sy);
+  }
+
+  // Draw marks
+  Object.entries(state.marks).forEach(([key, val]) => {
+    if (!val) return;
+    const [nx, ny] = val;
+    const dx = nx * sx, dy = ny * sy;
+    ctx.beginPath();
+    ctx.arc(dx, dy, 7, 0, 2*Math.PI);
+    ctx.fillStyle = COLORS[key];
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+}
+
+function checkReady() {
+  // Required: stumps, bounce, impact. Crease markers optional (degrades to pixel-space).
+  const required = ['stump_top_left', 'stump_bottom_right', 'bounce', 'impact'];
+  const ready = required.every(k => state.marks[k] !== null);
+  document.getElementById('analyzeBtn').disabled = !ready;
+}
+
+function resetMarks() {
+  Object.keys(state.marks).forEach(k => state.marks[k] = null);
+  document.querySelectorAll('.mark-item').forEach(el => el.classList.remove('set'));
+  document.querySelectorAll('[id^="mv_"]').forEach(el => el.textContent = 'not set');
+  document.getElementById('analyzeBtn').disabled = true;
+  drawOverlay();
+  const firstBtn = document.querySelector('[data-mode="stump_top_left"]');
+  setMode(firstBtn);
+}
+
+async function runAnalysis() {
+  const [tlx, tly] = state.marks.stump_top_left;
+  const [brx, bry] = state.marks.stump_bottom_right;
+
+  const stumps = {
+    top_y: Math.min(tly, bry),
+    bottom_y: Math.max(tly, bry),
+    left_x: Math.min(tlx, brx),
+    right_x: Math.max(tlx, brx),
+    mid_x: (tlx + brx) / 2,
+  };
+
+  const body = {
+    video_id: state.videoId,
+    filename: state.filename,
+    stumps,
+    impact_point: state.marks.impact,
+    bounce_point: state.marks.bounce,
+    crease_leg: state.marks.crease_leg || null,
+    crease_off: state.marks.crease_off || null,
+    track_start_frame: parseInt(document.getElementById('trackStart').value) || 0,
+    track_end_frame: parseInt(document.getElementById('trackEnd').value) || 150,
+  };
+
+  document.getElementById('spinner').style.display = 'block';
+  document.getElementById('errorBox').style.display = 'none';
+  document.getElementById('analyzeBtn').disabled = true;
+
+  try {
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      showError(data.error + (data.detections_found !== undefined ? ` (${data.detections_found} detections found)` : ''));
+      return;
+    }
+
+    showResults(data);
+  } catch(e) {
+    showError('Network error: ' + e.message);
+  } finally {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('analyzeBtn').disabled = false;
+  }
+}
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = '⚠ ' + msg;
+  box.style.display = 'block';
+}
+
+function showResults(data) {
+  setStepDone(2); setStepActive(3);
+  document.getElementById('resultsSection').style.display = 'block';
+  document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+
+  const dec = data.decision;
+  const isUC = data.umpires_call;
+
+  // Decision banner
+  const banner = document.getElementById('decisionBanner');
+  banner.className = 'decision-banner ' + (dec === 'OUT' ? 'out' : dec === 'NOT OUT' ? 'not-out' : 'uc');
+  document.getElementById('decisionText').textContent = dec;
+
+  // Umpire's call: show the raw UC + our verdict
+  if (isUC) {
+    document.getElementById('decisionReason').innerHTML =
+      `⚖️ <strong>Umpire's Call</strong> — ball clipping the stump.<br>` +
+      `Our verdict: <strong>${data.umpires_call_verdict}</strong> — ${data.reason.split('—')[1]?.trim() || data.reason}`;
+  } else {
+    document.getElementById('decisionReason').textContent = data.reason;
+  }
+
+  // Wickets card — show UMPIRE'S CALL if applicable, then our verdict below
+  const wicketColor = data.wickets === 'HITTING' ? 'card-red'
+    : data.umpires_call ? 'card-orange'
+    : 'card-green';
+  const wicketText = data.umpires_call
+    ? `UMPIRE'S CALL\n(${data.umpires_call_verdict})`
+    : data.wickets;
+
+  const impactColor = data.impact === 'IN-LINE' ? 'card-red' : 'card-green';
+  const pitchColor = data.pitching === 'IN-LINE' ? 'card-red' : 'card-green';
+
+  const wCard = document.getElementById('cardWickets');
+  wCard.className = 'card-value ' + wicketColor;
+  if (data.umpires_call) {
+    wCard.innerHTML = `UMPIRE'S CALL<br><span style="font-size:.75rem;opacity:.85">${data.umpires_call_verdict}</span>`;
+  } else {
+    wCard.textContent = data.wickets;
+  }
+
+  document.getElementById('cardImpact').textContent = data.impact;
+  document.getElementById('cardImpact').className = 'card-value ' + impactColor;
+  document.getElementById('cardPitching').textContent = data.pitching;
+  document.getElementById('cardPitching').className = 'card-value ' + pitchColor;
+
+  // Result image
+  if (data.result_image) {
+    document.getElementById('resultImgWrap').innerHTML =
+      `<img src="${data.result_image}?t=${Date.now()}" class="result-image" alt="Trajectory overlay">`;
+  }
+
+  // Detection info
+  const creaseNote = (data.homography_used !== false)
+    ? ' Perspective correction applied.' : ' No crease markers — pixel-space only.';
+  document.getElementById('detectionsInfo').innerHTML =
+    `Ball tracked across <span>${data.detections ? data.detections.length : 0} frames</span>. ` +
+    `Video: ${data.video_width}×${data.video_height}px.${creaseNote}`;
+}
+
+function reviewAnother() {
+  document.getElementById('resultsSection').style.display = 'none';
+  resetMarks();
+  setStepActive(2);
+}
+
+function setStepDone(n) { document.getElementById('step'+n).classList.add('done'); document.getElementById('step'+n).classList.remove('active'); }
+function setStepActive(n) { document.getElementById('step'+n).classList.add('active'); }
+
+window.addEventListener('resize', () => { syncCanvases(); drawOverlay(); });
+</script>
+</body>
+</html>
