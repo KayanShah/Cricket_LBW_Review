@@ -140,12 +140,48 @@ def _render_result_frame(video_path, result, stumps, traj, info, uid, crease_leg
 
     h, w = frame.shape[:2]
 
+    sx1 = int(stumps["left_x"])
+    sx2 = int(stumps["right_x"])
+    sy1 = int(stumps["top_y"])
+    sy2 = int(stumps["bottom_y"])
+
+    # --- Stump corridor lines extending down the pitch ---
+    # Determine corridor colour based on pitching result
+    pitching = result.get("pitching", "IN-LINE")
+    if pitching == "OUTSIDE LEG":
+        corridor_colour = (255, 100, 50)   # orange-ish
+    elif pitching == "OUTSIDE OFF":
+        corridor_colour = (50, 200, 255)   # cyan
+    else:
+        corridor_colour = (60, 60, 220)    # red (in-line = danger)
+
+    # Project corridor to frame bottom using crease markers for perspective,
+    # otherwise extend vertically (face-on camera)
+    if crease_leg and crease_off and abs(crease_leg[1] - sy2) > 30:
+        # Side-on: taper the corridor toward crease
+        t = (h - sy2) / max(crease_leg[1] - sy2, 1)
+        bl_x = int(sx1 + t * (crease_leg[0] - sx1))
+        br_x = int(sx2 + t * (crease_off[0] - sx2))
+    else:
+        # Face-on: straight vertical lines
+        bl_x, br_x = sx1, sx2
+
+    # Semi-transparent filled corridor
+    overlay = frame.copy()
+    corridor_pts = np.array([[sx1, sy2], [sx2, sy2], [br_x, h], [bl_x, h]], dtype=np.int32)
+    cv2.fillPoly(overlay, [corridor_pts], corridor_colour)
+    cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
+
+    # Solid leg-stump and off-stump lines
+    cv2.line(frame, (sx1, sy1), (bl_x, h), (180, 180, 255), 2, cv2.LINE_AA)
+    cv2.line(frame, (sx2, sy1), (br_x, h), (180, 180, 255), 2, cv2.LINE_AA)
+
     # Draw pre-impact trajectory (green)
     pre_pts = [(int(x), int(y)) for x, y in result["trajectory"]["pre"]]
     for i in range(1, len(pre_pts)):
         cv2.line(frame, pre_pts[i-1], pre_pts[i], (0, 200, 0), 3, cv2.LINE_AA)
 
-    # Draw post-impact trajectory (red extrapolation)
+    # Draw post-impact trajectory (orange extrapolation)
     post_pts = [(int(x), int(y)) for x, y in result["trajectory"]["post"]]
     for i in range(1, len(post_pts)):
         cv2.line(frame, post_pts[i-1], post_pts[i], (0, 80, 220), 3, cv2.LINE_AA)
@@ -156,10 +192,6 @@ def _render_result_frame(video_path, result, stumps, traj, info, uid, crease_leg
     cv2.circle(frame, (ix, iy), 12, (255, 255, 255), 2)
 
     # Draw stumps box
-    sx1 = int(stumps["left_x"])
-    sx2 = int(stumps["right_x"])
-    sy1 = int(stumps["top_y"])
-    sy2 = int(stumps["bottom_y"])
     cv2.rectangle(frame, (sx1, sy1), (sx2, sy2), (255, 215, 0), 2)
 
     # Draw stump crossing
