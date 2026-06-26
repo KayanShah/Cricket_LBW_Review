@@ -191,16 +191,19 @@ def analyze_lbw(
 
     stump_top = stumps["top_y"]
     stump_bottom = stumps["bottom_y"]
-    margin = (stump_bottom - stump_top) * 0.12  # 12% umpire's call zone
+    # Ball diameter is ~7.2cm, stump height 71.1cm → ball radius ≈ 5% of stump height.
+    # Umpire's Call = less than 50% of ball hitting → within one ball radius of stump edge.
+    ball_radius_px = (stump_bottom - stump_top) * 0.051
 
     umpires_call_raw = False
     if stump_cross is not None:
         cy = stump_cross[1]
-        if cy < stump_top - margin:
+        if cy < stump_top - ball_radius_px:
             wickets = "MISSING OVER"
-        elif cy > stump_bottom + margin:
+        elif cy > stump_bottom + ball_radius_px:
             wickets = "MISSING UNDER"
-        elif (stump_top - margin <= cy <= stump_top + margin) or (stump_bottom - margin <= cy <= stump_bottom + margin):
+        elif cy < stump_top + ball_radius_px or cy > stump_bottom - ball_radius_px:
+            # Ball centre within one radius of stump edge = less than 50% hitting
             wickets = "UMPIRE'S CALL"
             umpires_call_raw = True
         else:
