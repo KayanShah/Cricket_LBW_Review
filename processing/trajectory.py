@@ -39,11 +39,26 @@ def fit_trajectory(
     pre_y = np.polyval(poly_y, pre_frames)
     pre_impact_points = list(zip(pre_x.tolist(), pre_y.tolist()))
 
-    # Extrapolate beyond impact — same parabola (no deflection assumed for LBW)
-    post_frames = np.linspace(impact_frame, impact_frame + 50, 50)
-    post_x = np.polyval(poly_x, post_frames)
-    post_y = np.polyval(poly_y, post_frames)
-    post_impact_points = list(zip(post_x.tolist(), post_y.tolist()))
+    # Post-impact extrapolation: project the bounce→impact direction vector forward.
+    # This gives the direction the ball was actually traveling when it hit the pad,
+    # so we can determine where it would have gone toward the stumps.
+    if bounce_point is not None:
+        dx = impact_point[0] - bounce_point[0]
+        dy = impact_point[1] - bounce_point[1]
+        dist = (dx ** 2 + dy ** 2) ** 0.5 or 1.0
+        ndx, ndy = dx / dist, dy / dist  # unit direction vector
+        # Project 300px forward in 60 steps
+        post_impact_points = [
+            (impact_point[0] + ndx * i * 5.0,
+             impact_point[1] + ndy * i * 5.0)
+            for i in range(1, 61)
+        ]
+    else:
+        # Fallback: continue the polynomial (less accurate)
+        post_frames = np.linspace(impact_frame, impact_frame + 50, 50)
+        post_x = np.polyval(poly_x, post_frames)
+        post_y = np.polyval(poly_y, post_frames)
+        post_impact_points = list(zip(post_x.tolist(), post_y.tolist()))
 
     return TrajectoryResult(
         pre_impact_points=pre_impact_points,
