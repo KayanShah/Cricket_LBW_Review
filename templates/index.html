@@ -338,7 +338,10 @@ async function handleFile(file) {
   state.filename = data.filename;
   state.videoInfo = data.info;
 
-  document.getElementById('trackEnd').value = Math.min(data.info.frame_count - 1, 150);
+  const totalFrames = data.info.frame_count - 1;
+  document.getElementById('trackStart').max = totalFrames;
+  document.getElementById('trackEnd').max = totalFrames;
+  document.getElementById('trackEnd').value = Math.min(totalFrames, 150);
   showVideoSection(data.filename);
   setStepDone(1); setStepActive(2);
 }
