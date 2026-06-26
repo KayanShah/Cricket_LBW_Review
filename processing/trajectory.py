@@ -88,15 +88,27 @@ def interpolate_corridor(
     return min(leg, off), max(leg, off)
 
 
-def find_stump_crossing(traj: TrajectoryResult, stump_x: float) -> Optional[tuple[float, float]]:
-    pts = traj.post_impact_points
-    for i in range(len(pts) - 1):
-        x0, y0 = pts[i]
-        x1, y1 = pts[i + 1]
-        if (x0 <= stump_x <= x1) or (x1 <= stump_x <= x0):
-            t = (stump_x - x0) / (x1 - x0) if x1 != x0 else 0.5
-            return (stump_x, y0 + t * (y1 - y0))
-    return None
+def find_stump_closest_approach(traj: TrajectoryResult, stumps: dict) -> tuple[Optional[tuple[float, float]], float]:
+    """
+    Find the point on the post-impact trajectory with minimum distance to the stump box.
+    Returns (closest_point, min_distance_px).
+    Distance is 0 if the point is inside the box.
+    """
+    sx1, sx2 = stumps["left_x"], stumps["right_x"]
+    sy1, sy2 = stumps["top_y"], stumps["bottom_y"]
+
+    min_dist = float('inf')
+    closest = None
+
+    for x, y in traj.post_impact_points:
+        dx = max(sx1 - x, 0.0, x - sx2)
+        dy = max(sy1 - y, 0.0, y - sy2)
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+        if dist < min_dist:
+            min_dist = dist
+            closest = (x, y)
+
+    return closest, min_dist
 
 
 def _umpires_call_decision(cross_y: float, stump_top_y: float, stump_bottom_y: float, traj: TrajectoryResult) -> str:
@@ -118,19 +130,15 @@ def _umpires_call_decision(cross_y: float, stump_top_y: float, stump_bottom_y: f
         going_down = True  # default: assume hitting
 
     clipping_top = cross_y <= stump_top_y + margin
-    clipping_bottom = cross_y >= stump_bottom_y - margin
 
     if clipping_top:
         # Clipping top of stumps (bails level)
         if going_down:
-            return "OUT"   # ball dropping into stumps / bails
+            return "OUT"   # ball dropping into stumps
         else:
-            return "NOT OUT"  # ball rising, glancing off bail
-    elif clipping_bottom:
-        # Clipping bottom of stumps near ground — almost always hitting
-        return "OUT"
+            return "NOT OUT"  # ball rising, benefit of doubt
     else:
-        # Within stump height proper
+        # Clipping side or bottom — centre still within box
         return "OUT"
 
 
@@ -185,31 +193,41 @@ def analyze_lbw(
     impact = classify_x(impact_point)
 
     # --- Wickets ---
-    stump_mid_x = stumps["mid_x"]
-    stump_cross = find_stump_crossing(traj, stump_mid_x)
-    traj.stump_crossing = stump_cross
-
     stump_top = stumps["top_y"]
     stump_bottom = stumps["bottom_y"]
-    # Ball diameter is ~7.2cm, stump height 71.1cm → ball radius ≈ 5% of stump height.
-    # Umpire's Call = less than 50% of ball hitting → within one ball radius of stump edge.
+    # Ball radius ≈ 5% of stump height (ball 7.2cm diameter, stumps 71.1cm tall)
+    # Umpire's Call = ball centre within one radius of any stump edge (<50% hitting)
     ball_radius_px = (stump_bottom - stump_top) * 0.051
 
+    closest_pt, min_dist = find_stump_closest_approach(traj, stumps)
+    traj.stump_crossing = closest_pt
+
     umpires_call_raw = False
-    if stump_cross is not None:
-        cy = stump_cross[1]
-        if cy < stump_top - ball_radius_px:
+    if closest_pt is None:
+        wickets = "MISSING"
+    elif min_dist > ball_radius_px:
+        # Ball misses the box entirely — determine direction
+        cx, cy = closest_pt
+        if cy < stump_top:
             wickets = "MISSING OVER"
-        elif cy > stump_bottom + ball_radius_px:
+        elif cy > stump_bottom:
             wickets = "MISSING UNDER"
-        elif cy < stump_top + ball_radius_px or cy > stump_bottom - ball_radius_px:
-            # Ball centre within one radius of stump edge = less than 50% hitting
+        else:
+            wickets = "MISSING"
+    else:
+        # Ball is within one radius of box edge (or inside it) — check if clipping or full hit
+        cx, cy = closest_pt
+        sx1, sx2 = stumps["left_x"], stumps["right_x"]
+        sy1, sy2 = stumps["top_y"], stumps["bottom_y"]
+        # Clipping = centre is outside or within one radius of any edge
+        on_edge = (cx < sx1 + ball_radius_px or cx > sx2 - ball_radius_px or
+                   cy < sy1 + ball_radius_px or cy > sy2 - ball_radius_px or
+                   min_dist > 0)
+        if on_edge:
             wickets = "UMPIRE'S CALL"
             umpires_call_raw = True
         else:
             wickets = "HITTING"
-    else:
-        wickets = "MISSING"
 
     # --- LBW decision ---
     umpires_call_final = None
