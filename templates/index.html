@@ -230,7 +230,14 @@
             <input type="number" id="trackEnd" value="150" min="1" placeholder="End">
           </div>
 
-          <div style="margin-top:16px; display:flex; gap:10px;">
+          <div style="margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <label style="font-size:.8rem;color:#9ca3af;">On-field decision:</label>
+            <select id="originalDecision" style="background:#1f2937;border:1px solid #374151;color:#e5e7eb;padding:6px 10px;border-radius:6px;font-size:.85rem;">
+              <option value="NOT OUT">NOT OUT</option>
+              <option value="OUT">OUT</option>
+            </select>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:10px;">
             <button class="btn btn-success" id="analyzeBtn" onclick="runAnalysis()" disabled>Analyze LBW</button>
             <button class="btn btn-secondary" onclick="resetMarks()">Reset Marks</button>
           </div>
@@ -256,10 +263,10 @@
       <p id="decisionReason"></p>
     </div>
 
-    <div class="cards-row">
-      <div class="drs-card">
+    <div class="cards-row" id="cardsRow">
+      <div class="drs-card" id="cardOriginalWrap" style="display:none;">
         <div class="card-label">Original Decision</div>
-        <div class="card-value card-green" id="cardOriginal">NOT OUT</div>
+        <div class="card-value" id="cardOriginal">NOT OUT</div>
       </div>
       <div class="drs-card">
         <div class="card-label">Wickets</div>
@@ -564,19 +571,26 @@ function showResults(data) {
 
   const dec = data.decision;
   const isUC = data.umpires_call;
+  const originalDec = document.getElementById('originalDecision').value;
 
   // Decision banner
   const banner = document.getElementById('decisionBanner');
   banner.className = 'decision-banner ' + (dec === 'OUT' ? 'out' : dec === 'NOT OUT' ? 'not-out' : 'uc');
   document.getElementById('decisionText').textContent = dec;
 
-  // Umpire's call: show the raw UC + our verdict
   if (isUC) {
     document.getElementById('decisionReason').innerHTML =
       `⚖️ <strong>Umpire's Call</strong> — ball clipping the stump.<br>` +
       `Our verdict: <strong>${data.umpires_call_verdict}</strong> — ${data.reason.split('—')[1]?.trim() || data.reason}`;
+    // Show original decision card only for UC
+    const origWrap = document.getElementById('cardOriginalWrap');
+    origWrap.style.display = 'block';
+    const origCard = document.getElementById('cardOriginal');
+    origCard.textContent = originalDec;
+    origCard.className = 'card-value ' + (originalDec === 'OUT' ? 'card-red' : 'card-green');
   } else {
     document.getElementById('decisionReason').textContent = data.reason;
+    document.getElementById('cardOriginalWrap').style.display = 'none';
   }
 
   // Wickets card — show UMPIRE'S CALL if applicable, then our verdict below
