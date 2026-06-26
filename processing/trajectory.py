@@ -262,7 +262,7 @@ def analyze_lbw(
         "reason": reason,
         "umpires_call": umpires_call_raw,
         "umpires_call_verdict": umpires_call_final,
-        "stump_crossing": stump_cross,
+        "stump_crossing": closest_pt,
         "trajectory": {
             "pre": traj.pre_impact_points,
             "post": traj.post_impact_points,
